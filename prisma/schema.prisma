@@ -1,0 +1,168 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enums ───────────────────────────────────────────────────────────────────
+
+enum Modalidad {
+  senderismo
+  bici
+  moto
+  cuatro_por_cuatro @map("4x4")
+}
+
+enum Dificultad {
+  facil
+  moderada
+  dificil
+  muy_dificil
+}
+
+// ─── Modelo principal ────────────────────────────────────────────────────────
+
+model Ruta {
+  id        Int      @id @default(autoincrement())
+  slug      String   @unique
+  titulo    String
+  publicada Boolean  @default(false)
+
+  // Clasificación
+  modalidad  Modalidad
+  dificultad Dificultad
+  provincia  String
+
+  // Descripción
+  descripcion String?
+
+  // Métricas
+  distancia         Float?
+  duracion          String?
+  duracion_horas    Int?
+  duracion_minutos  Int?
+  desnivel_positivo Int?
+  desnivel_negativo Int?
+  altitud_maxima    Int?
+  altitud_minima    Int?
+  tipo_recorrido    String?
+
+  // Localización
+  punto_inicio        String?
+  coordenadas_parking String?
+  como_llegar         String?
+  transporte_publico  String?
+
+  // Logística
+  mejor_epoca       String?
+  mejor_momento_dia String?
+  equipamiento      String?
+  puntos_agua       String?
+  puntos_interes    String?
+  servicios_cercanos  String?
+  alojamiento_cercano String?
+  zonas_camping       String?
+
+  // Archivos
+  archivo_gpx String?
+
+  // Valoración
+  valoracion         Float? @default(0)
+  total_valoraciones Int?   @default(0)
+
+  // SEO
+  rank_math_seo_score Int?
+
+  // ── Campos exclusivos Senderismo ──────────────────────────────────────────
+  ecosistema                String?
+  flora                     String?
+  fauna                     String?
+  nivel_experiencia         String?
+  forma_fisica              String?
+  puntos_de_avituallamiento String?
+  avisos_seguridad          String?
+  restricciones_permisos    String?
+  permisos_especiales       String?
+  permisos_necesarios       String?
+  epoca_nieve               String?
+
+  // ── Campos exclusivos Bici ────────────────────────────────────────────────
+  tipo_bici          String?
+  nivel_tecnico_bici String?
+  tipo_terreno_bici  String?
+  talleres_bici      String?
+
+  // ── Campos exclusivos Moto ────────────────────────────────────────────────
+  tipo_de_carretera  String?
+  estado_asfalto     String?
+  puertos_montana    String?
+  peajes             String?
+  gasolineras_ruta   String?
+  puntos_moteros     String?
+  zonas_descanso_moto String?
+
+  // ── Campos exclusivos 4x4 ─────────────────────────────────────────────────
+  tipo_terreno_4x4    String?
+  traccion_necesaria  String?
+  estado_firme        String?
+  vado_rios           String?
+  dificultad_tecnica  String?
+  parking_coste       String?
+  parking_descripcion String?
+  puntos_repostaje_4x4 String?
+
+  // Meta
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relaciones
+  imagenes     ImagenRuta[]
+  puntosRuta   PuntoInteres[]
+  valoraciones Valoracion[]
+
+  @@index([provincia])
+  @@index([modalidad])
+  @@index([dificultad])
+  @@index([publicada])
+}
+
+// ─── Modelos relacionados ─────────────────────────────────────────────────────
+
+model ImagenRuta {
+  id     Int     @id @default(autoincrement())
+  rutaId Int
+  url    String?
+  orden  Int     @default(0)
+  alt    String?
+
+  ruta Ruta @relation(fields: [rutaId], references: [id], onDelete: Cascade)
+
+  @@index([rutaId])
+}
+
+model PuntoInteres {
+  id          Int     @id @default(autoincrement())
+  rutaId      Int
+  nombre      String
+  descripcion String?
+  coordenadas String?
+
+  ruta Ruta @relation(fields: [rutaId], references: [id], onDelete: Cascade)
+
+  @@index([rutaId])
+}
+
+model Valoracion {
+  id         Int      @id @default(autoincrement())
+  rutaId     Int
+  puntuacion Int
+  comentario String?
+  createdAt  DateTime @default(now())
+
+  ruta Ruta @relation(fields: [rutaId], references: [id], onDelete: Cascade)
+
+  @@index([rutaId])
+}
