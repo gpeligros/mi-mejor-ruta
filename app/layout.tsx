@@ -1,5 +1,8 @@
 import type { Metadata } from 'next'
 import './globals.css'
+import 'leaflet/dist/leaflet.css'
+import Navbar from '@/components/ui/Navbar'
+import Footer from '@/components/ui/Footer'
 
 export const metadata: Metadata = {
   title: {
@@ -17,7 +20,11 @@ export default function RootLayout({
 }) {
   return (
     <html lang="es">
-      <body>{children}</body>
+      <body className="flex flex-col min-h-screen bg-white">
+        <Navbar />
+        <div className="flex-1">{children}</div>
+        <Footer />
+      </body>
     </html>
   )
 }
