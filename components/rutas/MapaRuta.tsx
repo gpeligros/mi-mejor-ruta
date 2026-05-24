@@ -15,6 +15,9 @@ function fixLeafletIcons() {
   })
 }
 
+// Inicializa iconos una sola vez al cargar el módulo (seguro: 'use client' + dynamic ssr:false)
+fixLeafletIcons()
+
 type Props = {
   coordenadas?: string | null
   gpxPoints?: [number, number][]
@@ -31,9 +34,6 @@ function FitBounds({ points }: { points: [number, number][] }) {
 }
 
 export default function MapaRuta({ coordenadas, gpxPoints = [] }: Props) {
-  useEffect(() => {
-    fixLeafletIcons()
-  }, [])
 
   const center: [number, number] = [40.4, -3.7]
 
