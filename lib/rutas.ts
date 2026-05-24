@@ -63,6 +63,7 @@ export async function getRutas(
   const { data, error, count } = await supabase
     .from('Ruta')
     .select(RESUMEN_FIELDS, { count: 'exact' })
+    .eq('publicada', true)
     .order('valoracion', { ascending: false, nullsFirst: false })
     .range(from, to)
   if (error) throw new Error(error.message)
@@ -80,9 +81,10 @@ export async function getRutaBySlug(slug: string): Promise<RutaDetalle | null> {
 }
 
 export async function getPublishedSlugs(): Promise<{ slug: string }[]> {
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('Ruta')
     .select('slug')
     .eq('publicada', true)
+  if (error) throw new Error(error.message)
   return data ?? []
 }
