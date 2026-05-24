@@ -86,7 +86,7 @@ export default function RutaCard({ ruta }: { ruta: RutaResumen }) {
         <h3 className="font-bold text-gray-900 line-clamp-2 mb-1 leading-snug">
           {ruta.titulo}
         </h3>
-        <p className="text-sm text-gray-500 mb-3 capitalize">{ruta.provincia}</p>
+        <p className="text-sm text-gray-500 mb-3 capitalize">{ruta.provincia.replace(/-/g, ' ')}</p>
 
         {/* Stats */}
         <div className="flex flex-wrap gap-3 text-sm text-gray-600 mb-3">
@@ -96,10 +96,10 @@ export default function RutaCard({ ruta }: { ruta: RutaResumen }) {
         </div>
 
         {/* Valoración */}
-        {ruta.total_valoraciones !== null && ruta.total_valoraciones > 0 && (
+        {ruta.total_valoraciones !== null && ruta.total_valoraciones > 0 && ruta.valoracion !== null && (
           <div className="flex items-center gap-1 text-sm mb-3">
             <span className="text-yellow-400">★</span>
-            <span className="font-medium">{ruta.valoracion?.toFixed(1)}</span>
+            <span className="font-medium">{ruta.valoracion.toFixed(1)}</span>
             <span className="text-gray-400">({ruta.total_valoraciones})</span>
           </div>
         )}
