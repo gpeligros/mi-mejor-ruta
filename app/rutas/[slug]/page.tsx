@@ -52,7 +52,7 @@ async function parseGpx(url: string): Promise<GpxData> {
     type TrkPt = { lat: string; lon: string; ele?: string | number }
     const rawPts = parsed?.gpx?.trk?.trkseg?.trkpt ?? []
     const points = (rawPts as TrkPt[]).filter(
-      (p) => typeof p.lat === 'string' && typeof p.lon === 'string'
+      (p) => p.lat != null && p.lon != null
     )
     if (points.length === 0) return EMPTY_GPX
 
@@ -163,7 +163,7 @@ export default async function RutaPage({ params }: { params: { slug: string } })
       <DatosTecnicos ruta={ruta} />
 
       {/* Descripción */}
-      {ruta.descripcion !== null && (
+      {!!ruta.descripcion && (
         <section className="mt-8">
           <h2 className="text-xl font-bold text-gray-900 mb-3">Sobre la Ruta</h2>
           <p className="text-gray-700 leading-relaxed">{ruta.descripcion}</p>
@@ -171,7 +171,7 @@ export default async function RutaPage({ params }: { params: { slug: string } })
       )}
 
       {/* Badges informativos */}
-      {(ruta.ecosistema ?? ruta.puntos_agua ?? ruta.puntos_interes) !== null && (
+      {!!(ruta.ecosistema || ruta.puntos_agua || ruta.puntos_interes) && (
         <div className="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-3">
           {ruta.ecosistema !== null && (
             <Badge label="Ecosistema" value={ruta.ecosistema} icon="🌿" />

@@ -1,4 +1,5 @@
 // lib/rutas.ts
+import { cache } from 'react'
 import { createClient } from '@supabase/supabase-js'
 
 const supabase = createClient(
@@ -70,7 +71,7 @@ export async function getRutas(
   return { rutas: data ?? [], total: count ?? 0 }
 }
 
-export async function getRutaBySlug(slug: string): Promise<RutaDetalle | null> {
+export const getRutaBySlug = cache(async (slug: string): Promise<RutaDetalle | null> => {
   const { data, error } = await supabase
     .from('Ruta')
     .select('*')
@@ -78,7 +79,7 @@ export async function getRutaBySlug(slug: string): Promise<RutaDetalle | null> {
     .single()
   if (error) return null
   return data as RutaDetalle
-}
+})
 
 export async function getPublishedSlugs(): Promise<{ slug: string }[]> {
   const { data, error } = await supabase
