@@ -1,4 +1,4 @@
-# CLAUDE.md — Rutas de España
+# CLAUDE.md — Mi Mejor Ruta
 
 Este archivo es el contexto principal del proyecto. Léelo completo antes de cualquier acción.
 
@@ -6,7 +6,7 @@ Este archivo es el contexto principal del proyecto. Léelo completo antes de cua
 
 ## ¿Qué es este proyecto?
 
-**Rutas de España** es una aplicación web de rutas al aire libre y en vehículo por España.
+**Mi Mejor Ruta** es una aplicación web de rutas al aire libre y en vehículo por España.
 Migrada desde WordPress (1.225 rutas exportadas) a un stack moderno.
 El objetivo es escalar por fases: web informativa → directorio filtrable → app con usuarios → monetización.
 
@@ -363,4 +363,4 @@ Las siguientes tareas se delegan a Claude Cowork para no interrumpir el flujo de
 ---
 
 *Última actualización: Mayo 2026*
-*Proyecto: Rutas de España*
+*Proyecto: Mi Mejor Ruta*

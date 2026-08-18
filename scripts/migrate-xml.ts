@@ -376,7 +376,7 @@ async function insertBatch(
 async function main(): Promise<void> {
   const isDryRun = process.argv.includes('--dry')
 
-  console.log('\nRutas de Espana - Migracion WordPress -> Supabase')
+  console.log('\nMi Mejor Ruta - Migracion WordPress -> Supabase')
   console.log('='.repeat(50))
   if (isDryRun) console.log('MODO DRY RUN (sin insercion)\n')
 

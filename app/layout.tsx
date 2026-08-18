@@ -6,8 +6,8 @@ import Footer from '@/components/ui/Footer'
 
 export const metadata: Metadata = {
   title: {
-    default: 'Rutas de España',
-    template: '%s | Rutas de España',
+    default: 'Mi Mejor Ruta',
+    template: '%s | Mi Mejor Ruta',
   },
   description: 'Descubre rutas de senderismo, bici, moto y 4x4 por toda España',
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'),
