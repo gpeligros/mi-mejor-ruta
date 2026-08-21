@@ -1,8 +1,6 @@
 import type { Metadata } from 'next'
-import dynamic from 'next/dynamic'
-import { buscarRutas } from '@/lib/rutas'
+import { buscarRutas, obtenerCoordenadasFiltradas } from '@/lib/rutas'
 import { parsearFiltros, debeSerNoIndexable, PER_PAGE, type BusquedaSearchParams } from '@/lib/filtrosRutas'
-import RutaCard from '@/components/rutas/RutaCard'
 import Paginacion from '@/components/rutas/Paginacion'
 import BarraBusqueda from '@/components/rutas/BarraBusqueda'
 import PanelFiltros from '@/components/rutas/PanelFiltros'
@@ -11,9 +9,7 @@ import ChipsActivos from '@/components/rutas/ChipsActivos'
 import SelectorOrden from '@/components/rutas/SelectorOrden'
 import ToggleVistaListaMapa from '@/components/rutas/ToggleVistaListaMapa'
 import EstadoVacio from '@/components/rutas/EstadoVacio'
-
-// El mapa usa Leaflet, que necesita el DOM del navegador — se carga solo en cliente.
-const MapaResultados = dynamic(() => import('@/components/rutas/MapaResultados'), { ssr: false })
+import ExploradorRutas from '@/components/rutas/ExploradorRutas'
 
 type Props = { searchParams: BusquedaSearchParams }
 
@@ -32,7 +28,16 @@ export async function generateMetadata({ searchParams }: Props): Promise<Metadat
 
 export default async function RutasPage({ searchParams }: Props) {
   const filtros = parsearFiltros(searchParams)
-  const { rutas, total, facetas } = await buscarRutas(filtros)
+  // Se piden en paralelo: la lista paginada y, por separado, los puntos de
+  // TODAS las rutas que cumplen los mismos filtros (sin paginar) para que el
+  // mapa se pueda explorar con independencia de en qué página de la lista
+  // esté el usuario. obtenerCoordenadasFiltradas() aplica exactamente la
+  // misma lógica de filtrado que buscarRutas(), así que nunca pueden
+  // discrepar sobre qué rutas cumplen los filtros activos.
+  const [{ rutas, total, facetas }, puntosMapa] = await Promise.all([
+    buscarRutas(filtros),
+    obtenerCoordenadasFiltradas(filtros),
+  ])
   const totalPaginas = Math.ceil(total / PER_PAGE)
 
   return (
@@ -64,7 +69,11 @@ export default async function RutasPage({ searchParams }: Props) {
               </p>
             </div>
             <div className="flex items-center gap-3">
-              <ToggleVistaListaMapa filtros={filtros} />
+              {/* En escritorio la lista y el mapa se ven a la vez — el
+                  selector Lista/Mapa solo tiene sentido en móvil. */}
+              <div className="lg:hidden">
+                <ToggleVistaListaMapa filtros={filtros} />
+              </div>
               <SelectorOrden filtros={filtros} />
             </div>
           </div>
@@ -73,14 +82,8 @@ export default async function RutasPage({ searchParams }: Props) {
 
           {rutas.length === 0 ? (
             <EstadoVacio filtros={filtros} />
-          ) : filtros.vista === 'mapa' ? (
-            <MapaResultados rutas={rutas} />
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
-              {rutas.map((ruta) => (
-                <RutaCard key={ruta.id} ruta={ruta} />
-              ))}
-            </div>
+            <ExploradorRutas rutas={rutas} puntosMapa={puntosMapa} filtros={filtros} />
           )}
 
           <Paginacion filtros={filtros} totalPaginas={totalPaginas} />

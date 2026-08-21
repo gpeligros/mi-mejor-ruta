@@ -40,7 +40,18 @@ const DIFICULTAD_LABELS: Record<string, string> = {
   muy_dificil: 'Muy difícil',
 }
 
-export default function RutaCard({ ruta }: { ruta: RutaResumen }) {
+type Props = {
+  ruta: RutaResumen
+  // Props opcionales para sincronizar con el mapa (Prompt 6): al pasar el
+  // cursor por la tarjeta se resalta su marcador, y viceversa. Se omiten en
+  // los sitios donde no hay mapa (p.ej. la portada) y la tarjeta se comporta
+  // exactamente igual que antes.
+  resaltada?: boolean
+  onHoverStart?: () => void
+  onHoverEnd?: () => void
+}
+
+export default function RutaCard({ ruta, resaltada = false, onHoverStart, onHoverEnd }: Props) {
   const [imgError, setImgError] = useState(false)
 
   const gradient = MODALIDAD_GRADIENTS[ruta.modalidad] ?? 'from-gray-600 to-gray-900'
@@ -50,7 +61,13 @@ export default function RutaCard({ ruta }: { ruta: RutaResumen }) {
   return (
     <Link
       href={`/rutas/${ruta.slug}`}
-      className="group block rounded-2xl overflow-hidden shadow-md hover:shadow-xl transition-shadow bg-white"
+      onMouseEnter={onHoverStart}
+      onMouseLeave={onHoverEnd}
+      onFocus={onHoverStart}
+      onBlur={onHoverEnd}
+      className={`group block rounded-2xl overflow-hidden shadow-md hover:shadow-xl transition-shadow bg-white ${
+        resaltada ? 'ring-2 ring-orange-500 shadow-xl' : ''
+      }`}
     >
       {/* Imagen o gradiente */}
       <div className="relative h-48">

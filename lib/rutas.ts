@@ -267,30 +267,12 @@ const RESUMEN_FIELDS_BUSQUEDA =
 // no se llega ni de lejos a este límite.
 const LIMITE_CANDIDATAS_EN_MEMORIA = 2000
 
-export async function buscarRutas(filtros: FiltrosRutas): Promise<ResultadoBusqueda> {
-  const facetas = await obtenerFacetas()
-  // obtenerFacetas() ya ha rellenado ultimoTipoRecorridoValoresCrudos si
-  // hizo falta recalcular; si vino de caché, sigue siendo válido porque solo
-  // cambia cuando cambian los datos de origen.
-
-  let query = supabase
-    .from('Ruta')
-    .select(RESUMEN_FIELDS_BUSQUEDA, { count: 'exact' })
-    .eq('publicada', true)
-
-  if (filtros.modalidad.length) query = query.in('modalidad', filtros.modalidad)
-  if (filtros.provincia.length) query = query.in('provincia', filtros.provincia)
-  if (filtros.dificultad.length) query = query.in('dificultad', filtros.dificultad)
-  if (filtros.distanciaMin !== null) query = query.gte('distancia', filtros.distanciaMin)
-  if (filtros.distanciaMax !== null) query = query.lte('distancia', filtros.distanciaMax)
-  if (filtros.desnivelMin !== null) query = query.gte('desnivel_positivo', filtros.desnivelMin)
-  if (filtros.desnivelMax !== null) query = query.lte('desnivel_positivo', filtros.desnivelMax)
-
-  // Estos filtros no se pueden expresar como una comparación simple de una
-  // columna (texto libre, dos columnas partidas, orden que no es
-  // alfabético) — se resuelven trayendo un conjunto acotado de candidatas y
-  // filtrando/ordenando en el servidor de Next.js. Ver nota de escala.
-  const necesitaMemoria =
+// Estos filtros no se pueden expresar como una comparación simple de una
+// columna (texto libre, dos columnas partidas, orden que no es alfabético)
+// — se resuelven trayendo un conjunto acotado de candidatas y
+// filtrando/ordenando en el servidor de Next.js. Ver nota de escala.
+function necesitaMemoria(filtros: FiltrosRutas): boolean {
+  return (
     !!filtros.q ||
     filtros.tipoRecorrido.length > 0 ||
     filtros.mejorEpoca.length > 0 ||
@@ -299,8 +281,99 @@ export async function buscarRutas(filtros: FiltrosRutas): Promise<ResultadoBusqu
     filtros.orden === 'cercania' ||
     filtros.orden === 'dificultad_asc' ||
     filtros.orden === 'dificultad_desc'
+  )
+}
 
-  if (!necesitaMemoria) {
+// Filtros que sí son una comparación directa de columna — comunes a
+// buscarRutas() y a obtenerCoordenadasFiltradas(), para que el mapa refleje
+// EXACTAMENTE los mismos filtros que la lista, sin duplicar la lógica.
+// El tipo exacto del query builder de Supabase (PostgrestFilterBuilder con
+// sus genéricos encadenados) es engorroso de expresar aquí sin aportar
+// seguridad real, ya que esta función solo encadena .eq/.in/.gte/.lte de
+// forma condicional — se usa `any` deliberadamente, acotado a esta función.
+function aplicarFiltrosDeColumna(query: any, filtros: FiltrosRutas) {
+  let q = query.eq('publicada', true)
+  if (filtros.modalidad.length) q = q.in('modalidad', filtros.modalidad)
+  if (filtros.provincia.length) q = q.in('provincia', filtros.provincia)
+  if (filtros.dificultad.length) q = q.in('dificultad', filtros.dificultad)
+  if (filtros.distanciaMin !== null) q = q.gte('distancia', filtros.distanciaMin)
+  if (filtros.distanciaMax !== null) q = q.lte('distancia', filtros.distanciaMax)
+  if (filtros.desnivelMin !== null) q = q.gte('desnivel_positivo', filtros.desnivelMin)
+  if (filtros.desnivelMax !== null) q = q.lte('desnivel_positivo', filtros.desnivelMax)
+  return q
+}
+
+// Filtros que no son una comparación directa de columna (texto libre, tipo
+// de recorrido con mayúsculas inconsistentes, duración partida en dos
+// columnas) — se aplican en memoria, sobre lo que ya haya devuelto la
+// consulta anterior. También compartido entre buscarRutas() y
+// obtenerCoordenadasFiltradas().
+function aplicarFiltrosEnMemoria<T extends {
+  tipo_recorrido: string | null
+  mejor_epoca: string | null
+  duracion_horas: number | null
+  duracion_minutos: number | null
+  titulo: string
+  provincia: string
+}>(candidatas: T[], filtros: FiltrosRutas): T[] {
+  let resultado = candidatas
+
+  if (filtros.tipoRecorrido.length) {
+    const crudosValidos = new Set(
+      filtros.tipoRecorrido.flatMap((slug) => ultimoTipoRecorridoValoresCrudos[slug] ?? [])
+    )
+    resultado = resultado.filter((r) => r.tipo_recorrido !== null && crudosValidos.has(r.tipo_recorrido))
+  }
+
+  if (filtros.mejorEpoca.length) {
+    resultado = resultado.filter((r) => {
+      if (!r.mejor_epoca) return false
+      const normalizado = normalizarTexto(r.mejor_epoca)
+      return filtros.mejorEpoca.some((mes) => normalizado.includes(mes))
+    })
+  }
+
+  if (filtros.duracionMin !== null || filtros.duracionMax !== null) {
+    resultado = resultado.filter((r) => {
+      const minutos = totalMinutos(r)
+      if (minutos === null) return false
+      if (filtros.duracionMin !== null && minutos < filtros.duracionMin) return false
+      if (filtros.duracionMax !== null && minutos > filtros.duracionMax) return false
+      return true
+    })
+  }
+
+  if (filtros.q) {
+    const termino = filtros.q
+    resultado = resultado
+      .map((r) => {
+        const provinciaEtiqueta = PROVINCIA_LABELS[r.provincia] ?? r.provincia
+        const relevancia = Math.min(
+          puntuarRelevancia(compararTexto(termino, r.titulo)),
+          puntuarRelevancia(compararTexto(termino, provinciaEtiqueta))
+        )
+        return { r, relevancia }
+      })
+      .filter((x) => x.relevancia !== Infinity)
+      .sort((a, b) => a.relevancia - b.relevancia)
+      .map((x) => x.r)
+  }
+
+  return resultado
+}
+
+export async function buscarRutas(filtros: FiltrosRutas): Promise<ResultadoBusqueda> {
+  const facetas = await obtenerFacetas()
+  // obtenerFacetas() ya ha rellenado ultimoTipoRecorridoValoresCrudos si
+  // hizo falta recalcular; si vino de caché, sigue siendo válido porque solo
+  // cambia cuando cambian los datos de origen.
+
+  let query = aplicarFiltrosDeColumna(
+    supabase.from('Ruta').select(RESUMEN_FIELDS_BUSQUEDA, { count: 'exact' }),
+    filtros
+  )
+
+  if (!necesitaMemoria(filtros)) {
     switch (filtros.orden) {
       case 'distancia_asc':
         query = query.order('distancia', { ascending: true, nullsFirst: false })
@@ -337,62 +410,82 @@ export async function buscarRutas(filtros: FiltrosRutas): Promise<ResultadoBusqu
   // recorrido, duración o cercanía activos).
   const { data, error } = await query.limit(LIMITE_CANDIDATAS_EN_MEMORIA)
   if (error) throw new Error(error.message)
-  let candidatas = (data ?? []) as RutaResumenBusqueda[]
-
-  if (filtros.tipoRecorrido.length) {
-    const crudosValidos = new Set(
-      filtros.tipoRecorrido.flatMap((slug) => ultimoTipoRecorridoValoresCrudos[slug] ?? [])
-    )
-    candidatas = candidatas.filter(
-      (r) => r.tipo_recorrido !== null && crudosValidos.has(r.tipo_recorrido)
-    )
-  }
-
-  if (filtros.mejorEpoca.length) {
-    candidatas = candidatas.filter((r) => {
-      if (!r.mejor_epoca) return false
-      const normalizado = normalizarTexto(r.mejor_epoca)
-      return filtros.mejorEpoca.some((mes) => normalizado.includes(mes))
-    })
-  }
-
-  if (filtros.duracionMin !== null || filtros.duracionMax !== null) {
-    candidatas = candidatas.filter((r) => {
-      const minutos = totalMinutos(r)
-      if (minutos === null) return false
-      if (filtros.duracionMin !== null && minutos < filtros.duracionMin) return false
-      if (filtros.duracionMax !== null && minutos > filtros.duracionMax) return false
-      return true
-    })
-  }
-
-  if (filtros.q) {
-    const termino = filtros.q
-    candidatas = candidatas
-      .map((r) => {
-        const provinciaEtiqueta = PROVINCIA_LABELS[r.provincia] ?? r.provincia
-        const relevancia = Math.min(
-          puntuarRelevancia(compararTexto(termino, r.titulo)),
-          puntuarRelevancia(compararTexto(termino, provinciaEtiqueta))
-        )
-        return { r, relevancia }
-      })
-      .filter((x) => x.relevancia !== Infinity)
-      .sort((a, b) => a.relevancia - b.relevancia)
-      .map((x) => x.r)
-
-    // Si el orden pedido no es "relevancia", se reordena a partir de aquí
-    // manteniendo solo las que de verdad coinciden con la búsqueda.
-    if (filtros.orden !== 'relevancia') {
-      candidatas = aplicarOrdenEnMemoria(candidatas, filtros.orden, filtros.lat, filtros.lng)
-    }
-  } else {
-    candidatas = aplicarOrdenEnMemoria(candidatas, filtros.orden, filtros.lat, filtros.lng)
-  }
+  let candidatas = aplicarFiltrosEnMemoria((data ?? []) as RutaResumenBusqueda[], filtros)
+  candidatas = aplicarOrdenEnMemoria(candidatas, filtros.orden, filtros.lat, filtros.lng)
 
   const total = candidatas.length
   const from = (filtros.page - 1) * PER_PAGE
   const pagina = candidatas.slice(from, from + PER_PAGE)
 
   return { rutas: pagina, total, facetas }
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// MAPA (Prompt 6) — todas las coincidencias, no solo la página actual
+// ═════════════════════════════════════════════════════════════════════════
+//
+// El mapa debe reflejar EXACTAMENTE los mismos filtros que la lista, pero
+// sin paginar (si no, un mapa que solo mostrara los 12 resultados de la
+// página actual sería confuso). Para no cargar de más, solo se piden las
+// columnas que hacen falta para pintar un marcador — nunca el track GPX
+// completo, que solo se carga en la ficha individual de cada ruta.
+
+export type PuntoMapa = {
+  id: number
+  slug: string
+  titulo: string
+  dificultad: string
+  distancia: number | null
+  lat: number
+  lng: number
+}
+
+const CAMPOS_MAPA =
+  'id,slug,titulo,dificultad,provincia,distancia,tipo_recorrido,mejor_epoca,coordenadas_parking,duracion_horas,duracion_minutos'
+
+type FilaMapa = {
+  id: number
+  slug: string
+  titulo: string
+  dificultad: string
+  provincia: string
+  distancia: number | null
+  tipo_recorrido: string | null
+  mejor_epoca: string | null
+  coordenadas_parking: string | null
+  duracion_horas: number | null
+  duracion_minutos: number | null
+}
+
+export async function obtenerCoordenadasFiltradas(filtros: FiltrosRutas): Promise<PuntoMapa[]> {
+  // Asegura que ultimoTipoRecorridoValoresCrudos está poblado antes de
+  // filtrar en memoria, igual que en buscarRutas().
+  await obtenerFacetas()
+
+  const query = aplicarFiltrosDeColumna(supabase.from('Ruta').select(CAMPOS_MAPA), filtros).limit(
+    LIMITE_CANDIDATAS_EN_MEMORIA
+  )
+  const { data, error } = await query
+  if (error) throw new Error(error.message)
+
+  const filtradas = aplicarFiltrosEnMemoria((data ?? []) as FilaMapa[], filtros)
+
+  // "NO INVENTES": si una ruta no tiene coordenadas reales y parseables, no
+  // aparece en el mapa — sigue disponible en la lista, tal como pide el
+  // requisito de accesibilidad.
+  const puntos: PuntoMapa[] = []
+  for (const r of filtradas) {
+    const coords = parsearCoordenadas(r.coordenadas_parking)
+    if (!coords) continue
+    puntos.push({
+      id: r.id,
+      slug: r.slug,
+      titulo: r.titulo,
+      dificultad: r.dificultad,
+      distancia: r.distancia,
+      lat: coords[0],
+      lng: coords[1],
+    })
+  }
+  return puntos
 }
