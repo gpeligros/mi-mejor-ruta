@@ -1,4 +1,4 @@
-// components/rutas/MapaRuta.tsx
+// components/mapa/MapaRuta.tsx
 'use client'
 import { useEffect } from 'react'
 import { MapContainer, TileLayer, Polyline, Marker, Popup, useMap } from 'react-leaflet'

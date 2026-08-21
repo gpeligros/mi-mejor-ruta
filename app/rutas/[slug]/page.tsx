@@ -8,7 +8,7 @@ import { getRutaBySlug, getPublishedSlugs } from '@/lib/rutas'
 import DatosTecnicos from '@/components/rutas/DatosTecnicos'
 import PerfilElevacion from '@/components/rutas/PerfilElevacion'
 
-const MapaRuta = dynamic(() => import('@/components/rutas/MapaRuta'), { ssr: false })
+const MapaRuta = dynamic(() => import('@/components/mapa/MapaRuta'), { ssr: false })
 
 // ─── GPX ─────────────────────────────────────────────────────────────────────
 

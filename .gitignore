@@ -39,8 +39,5 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# material historico / no forma parte de la app (decision 2026-08-18)
-/Rutas&Senderismo/
-/img_rutas/
-/pantallazos-imgs/
-/pantallazos.docx
+# material historico / no forma parte de la app (decision 2026-08-18, consolidado 2026-08-21)
+/_archivo_historico/
