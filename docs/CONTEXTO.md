@@ -278,6 +278,8 @@ enum Dificultad {
 8. **Variables de entorno**: Nunca hardcodear credenciales. Usar siempre `process.env.VARIABLE`.
 9. **Commits**: Mensajes en español, en imperativo. Ej: `Añade filtro por provincia en listado de rutas`.
 10. **Un componente = un archivo**: No mezclar componentes no relacionados en el mismo fichero.
+11. **Idioma**: TODO en castellano — no solo los textos y comentarios, también los nombres técnicos: tablas, columnas, funciones, ficheros. Nada de nombrar cosas en inglés salvo palabras reservadas del lenguaje (`SELECT`, `CREATE TABLE`, tipos de dato como `text`/`integer`) o términos sin traducción razonable establecida.
+12. **Nombres de fichero sin versiones**: nunca añadir sufijos de versión a un fichero (`_v2`, `_final`, `_bueno`, `_copia`, fechas, ni prefijos como "Prompt1_", "Prompt2_"...). Un fichero tiene un nombre descriptivo y estable; si se actualiza, se sobrescribe o se sustituye — nunca se acumula con un nombre nuevo al lado del viejo. Esto aplica tanto a ficheros ejecutables/código como a documentos y entregables.
 
 ---
 
@@ -334,6 +336,22 @@ NEXT_PUBLIC_APP_URL=https://tudominio.es
 
 ---
 
+## Funcionalidades en análisis (pendiente de decidir con el usuario)
+
+Antes de cerrar el diseño definitivo de la base de datos (ver Prompt 3), el usuario ha pedido
+analizar estas ampliaciones. Todavía NO están decididas ni modeladas — se anota aquí para no
+perderlas de vista:
+
+- **Rutas especiales / itinerarios de varias etapas**: ej. Camino de Santiago. Por decidir si se
+  modelan como una ampliación del sistema de senderos GR/PR/SL ya diseñado, como "colecciones
+  temáticas" independientes que agrupan rutas ya existentes (ej. "Rutas de Castillos"), o ambas
+  cosas a la vez.
+- **Búsqueda de rutas por puntos de interés**: cascadas, monasterios, castillos, etc. Por decidir
+  si basta con etiquetas simples por ruta (filtro "tiene cascada: sí/no") o si hace falta un
+  catálogo propio de sitios (cada monasterio/castillo con su ficha, y qué rutas pasan cerca).
+
+---
+
 ## Fuente de datos original
 
 - **Exportación WordPress**: `rutasespaa_WordPress_2026-05-22.xml`
@@ -362,5 +380,5 @@ Las siguientes tareas se delegan a Claude Cowork para no interrumpir el flujo de
 
 ---
 
-*Última actualización: Mayo 2026*
+*Última actualización: 21 agosto 2026*
 *Proyecto: Mi Mejor Ruta*
