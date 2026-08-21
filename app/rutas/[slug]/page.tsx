@@ -5,7 +5,14 @@ import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import { XMLParser } from 'fast-xml-parser'
 import { getRutaBySlug, getPublishedSlugs } from '@/lib/rutas'
+import CabeceraRuta from '@/components/rutas/CabeceraRuta'
 import DatosTecnicos from '@/components/rutas/DatosTecnicos'
+import DescripcionRuta from '@/components/rutas/DescripcionRuta'
+import Preparacion from '@/components/rutas/Preparacion'
+import Restricciones from '@/components/rutas/Restricciones'
+import Acceso from '@/components/rutas/Acceso'
+import Galeria from '@/components/rutas/Galeria'
+import Servicios from '@/components/rutas/Servicios'
 import PerfilElevacion from '@/components/rutas/PerfilElevacion'
 
 const MapaRuta = dynamic(() => import('@/components/mapa/MapaRuta'), { ssr: false })
@@ -18,6 +25,13 @@ type GpxData = {
 }
 
 const EMPTY_GPX: GpxData = { gpxPoints: [], elevationPoints: [] }
+
+// Convierte un enlace de Dropbox "para ver" (dl=0) en uno "para descargar"
+// (dl=1) — se usa tanto para el fetch de parseGpx() como para el propio
+// enlace del CTA "Descargar GPX", así los dos coinciden siempre.
+function urlDescargaGpx(url: string): string {
+  return url.includes('dl=0') ? url.replace('dl=0', 'dl=1') : url
+}
 
 function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const R = 6371
@@ -32,8 +46,7 @@ function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number): nu
 
 async function parseGpx(url: string): Promise<GpxData> {
   try {
-    const downloadUrl = url.includes('dl=0') ? url.replace('dl=0', 'dl=1') : url
-    const res = await fetch(downloadUrl, {
+    const res = await fetch(urlDescargaGpx(url), {
       next: { revalidate: 3600 },
       signal: AbortSignal.timeout(10_000),
     })
@@ -111,32 +124,23 @@ export async function generateMetadata({
 
 // ─── Página ───────────────────────────────────────────────────────────────────
 
-function Badge({ label, value, icon }: { label: string; value: string; icon: string }) {
-  return (
-    <div className="flex items-start gap-2 bg-gray-50 rounded-xl p-3 text-sm">
-      <span>{icon}</span>
-      <div>
-        <div className="text-xs text-gray-500">{label}</div>
-        <div className="font-medium text-gray-900 line-clamp-2">{value}</div>
-      </div>
-    </div>
-  )
-}
-
 export default async function RutaPage({ params }: { params: { slug: string } }) {
   const ruta = await getRutaBySlug(params.slug)
   if (!ruta) notFound()
 
+  // El CTA "Descargar GPX" solo aparece si el archivo se ha podido
+  // descargar y parsear de verdad (no basta con que el campo archivo_gpx
+  // tenga un valor: la auditoría del Prompt 4 encontró que 62 de 65
+  // enlaces reales de WordPress apuntan a ficheros que ya no existen).
   const { gpxPoints, elevationPoints } = ruta.archivo_gpx
     ? await parseGpx(ruta.archivo_gpx)
     : EMPTY_GPX
-
-  const tieneValoracion =
-    ruta.total_valoraciones !== null && ruta.total_valoraciones > 0
+  const gpxDescargable =
+    gpxPoints.length > 1 && ruta.archivo_gpx ? { url: urlDescargaGpx(ruta.archivo_gpx) } : null
 
   return (
     <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-      {/* Breadcrumb */}
+      {/* Breadcrumb — HTML plano, indexable, sin JS necesario. */}
       <nav className="text-sm text-gray-500 mb-6 flex items-center gap-1">
         <Link href="/" className="hover:text-orange-500">Inicio</Link>
         <span>›</span>
@@ -145,58 +149,45 @@ export default async function RutaPage({ params }: { params: { slug: string } })
         <span className="text-gray-900 font-medium truncate">{ruta.titulo}</span>
       </nav>
 
-      {/* Cabecera */}
-      <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-3">{ruta.titulo}</h1>
+      {/*
+        Orden pensado mobile-first, de lo más crítico a lo más secundario:
+        1) Cabecera — decidir si interesa (foto, cifras clave, CTAs de
+           mapa/GPX/guardar ya disponibles sin bajar más).
+        2) Datos técnicos — entender la dificultad en detalle.
+        3) Descripción — de qué va la ruta.
+        4) Preparación — cómo prepararse antes de salir.
+        5) Restricciones — permisos y avisos, antes de comprometerse.
+        6) Acceso — cómo llegar, una vez decidido ir.
+        7) Mapa + perfil de elevación — consulta visual detallada.
+        8) Galería — material adicional, no crítico.
+        9) Servicios — información de apoyo, lo último que hace falta.
+      */}
+      <CabeceraRuta ruta={ruta} gpxDescargable={gpxDescargable} />
 
-      {tieneValoracion && (
-        <div className="flex items-center gap-2 mb-8 text-sm text-gray-600">
-          <span className="text-yellow-400 text-lg leading-none">
-            {'★'.repeat(Math.min(5, Math.round(ruta.valoracion ?? 0)))}
-            {'☆'.repeat(Math.max(0, 5 - Math.round(ruta.valoracion ?? 0)))}
-          </span>
-          <span className="font-medium">{ruta.valoracion?.toFixed(1)}</span>
-          <span>({ruta.total_valoraciones} valoraciones)</span>
-        </div>
-      )}
-
-      {/* Datos técnicos */}
       <DatosTecnicos ruta={ruta} />
 
-      {/* Descripción */}
-      {!!ruta.descripcion && (
-        <section className="mt-8">
-          <h2 className="text-xl font-bold text-gray-900 mb-3">Sobre la Ruta</h2>
-          <p className="text-gray-700 leading-relaxed">{ruta.descripcion}</p>
-        </section>
-      )}
+      <DescripcionRuta ruta={ruta} />
 
-      {/* Badges informativos */}
-      {!!(ruta.ecosistema || ruta.puntos_agua || ruta.puntos_interes) && (
-        <div className="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-3">
-          {ruta.ecosistema !== null && (
-            <Badge label="Ecosistema" value={ruta.ecosistema} icon="🌿" />
-          )}
-          {ruta.puntos_agua !== null && (
-            <Badge label="Puntos de agua" value={ruta.puntos_agua} icon="💧" />
-          )}
-          {ruta.puntos_interes !== null && (
-            <Badge label="Puntos de interés" value={ruta.puntos_interes} icon="📍" />
-          )}
-        </div>
-      )}
+      <Preparacion ruta={ruta} />
 
-      {/* Mapa */}
-      <section className="mt-10">
+      <Restricciones ruta={ruta} />
+
+      <Acceso ruta={ruta} />
+
+      <section id="mapa-ruta" className="mt-10">
         <h2 className="text-xl font-bold text-gray-900 mb-4">Mapa de la Ruta</h2>
         <MapaRuta coordenadas={ruta.coordenadas_parking} gpxPoints={gpxPoints} />
       </section>
 
-      {/* Perfil de elevación */}
       {elevationPoints.length > 0 && (
         <section className="mt-8">
           <PerfilElevacion puntos={elevationPoints} />
         </section>
       )}
+
+      <Galeria slug={ruta.slug} titulo={ruta.titulo} />
+
+      <Servicios ruta={ruta} />
     </main>
   )
 }

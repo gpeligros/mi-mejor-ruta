@@ -16,7 +16,7 @@ const MODALIDAD_LABELS: Record<string, string> = {
 
 type Dato = { label: string; value: string; icon: string }
 
-function buildDatos(ruta: RutaDetalle): Dato[] {
+export function buildDatos(ruta: RutaDetalle): Dato[] {
   const duracion =
     ruta.duracion_horas !== null && ruta.duracion_minutos !== null
       ? `${ruta.duracion_horas}h ${ruta.duracion_minutos}min`

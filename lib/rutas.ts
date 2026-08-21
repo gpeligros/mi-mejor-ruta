@@ -56,6 +56,22 @@ export type RutaDetalle = RutaResumen & {
   puntos_interes: string | null
   ecosistema: string | null
   archivo_gpx: string | null
+  // Añadidos en el Prompt 7 — ya existían como columnas reales en la tabla
+  // Ruta de producción (ver scripts/migrate-xml.ts), simplemente no se
+  // habían necesitado en el tipo hasta ahora. Confirmado con los datos
+  // reales de las 65 rutas publicadas que la mayoría de estos campos están
+  // bien rellenos (ver nota de cobertura en components/rutas/Preparacion.tsx,
+  // Restricciones.tsx, Acceso.tsx y Servicios.tsx).
+  transporte_publico: string | null
+  mejor_momento_dia: string | null
+  forma_fisica: string | null
+  nivel_experiencia: string | null
+  avisos_seguridad: string | null
+  restricciones_permisos: string | null
+  permisos_necesarios: string | null
+  servicios_cercanos: string | null
+  alojamiento_cercano: string | null
+  zonas_camping: string | null
 }
 
 const RESUMEN_FIELDS =
