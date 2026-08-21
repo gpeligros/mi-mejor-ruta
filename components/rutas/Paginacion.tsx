@@ -1,14 +1,19 @@
 // components/rutas/Paginacion.tsx
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
+import type { FiltrosRutas } from '@/lib/filtrosRutas'
+import { construirQueryString } from '@/lib/filtrosRutas'
 
 type Props = {
-  paginaActual: number
+  filtros: FiltrosRutas
   totalPaginas: number
 }
 
-export default function Paginacion({ paginaActual, totalPaginas }: Props) {
+export default function Paginacion({ filtros, totalPaginas }: Props) {
+  const paginaActual = filtros.page
   if (totalPaginas <= 1) return null
+
+  const href = (page: number) => `/rutas${construirQueryString(filtros, { page })}`
 
   const pages: (number | '...')[] = []
   for (let i = 1; i <= totalPaginas; i++) {
@@ -29,7 +34,7 @@ export default function Paginacion({ paginaActual, totalPaginas }: Props) {
   return (
     <nav className="flex items-center justify-center gap-1 mt-12" aria-label="Paginación">
       {paginaActual > 1 ? (
-        <Link href={`/rutas?page=${paginaActual - 1}`} className={cn(btnBase, 'hover:bg-gray-50')}>
+        <Link href={href(paginaActual - 1)} className={cn(btnBase, 'hover:bg-gray-50')}>
           ←
         </Link>
       ) : (
@@ -44,7 +49,7 @@ export default function Paginacion({ paginaActual, totalPaginas }: Props) {
         ) : (
           <Link
             key={page}
-            href={`/rutas?page=${page}`}
+            href={href(page)}
             className={cn(
               btnBase,
               page === paginaActual
@@ -58,7 +63,7 @@ export default function Paginacion({ paginaActual, totalPaginas }: Props) {
       )}
 
       {paginaActual < totalPaginas ? (
-        <Link href={`/rutas?page=${paginaActual + 1}`} className={cn(btnBase, 'hover:bg-gray-50')}>
+        <Link href={href(paginaActual + 1)} className={cn(btnBase, 'hover:bg-gray-50')}>
           →
         </Link>
       ) : (

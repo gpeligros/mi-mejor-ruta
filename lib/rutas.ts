@@ -1,6 +1,23 @@
 // lib/rutas.ts
 import { cache } from 'react'
+import { unstable_cache } from 'next/cache'
 import { createClient } from '@supabase/supabase-js'
+import { compararTexto, normalizarTexto, puntuarRelevancia } from './busqueda'
+import {
+  DIFICULTAD_LABELS,
+  DIFICULTAD_ORDEN,
+  MODALIDAD_LABELS,
+  PROVINCIA_LABELS,
+  PER_PAGE,
+  calcularFacetaGenerica,
+  calcularFacetaMeses,
+  calcularRango,
+  distanciaKm,
+  parsearCoordenadas,
+  type FiltrosRutas,
+  type OpcionFaceta,
+  type OrdenRutas,
+} from './filtrosRutas'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -88,4 +105,294 @@ export async function getPublishedSlugs(): Promise<{ slug: string }[]> {
     .eq('publicada', true)
   if (error) throw new Error(error.message)
   return data ?? []
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// BUSCADOR Y FILTROS (Prompt 5)
+// ═════════════════════════════════════════════════════════════════════════
+//
+// Solo se construyen filtros y facetas sobre columnas que existen de verdad
+// hoy en la tabla "Ruta" de producción. No hay "municipio", "parque" ni
+// código GR/PR/SL en esta tabla (ver docs/mapeo-wordpress-nueva-base-datos.md),
+// así que ni el buscador ni los filtros pueden ofrecerlos todavía. Tampoco
+// hay características en forma de etiqueta (agua/perros/cascadas...) — son
+// campos de texto libre, no un booleano por ruta — así que los "filtros P2"
+// se quedan sin ninguna opción disponible por ahora (ver PanelFiltros.tsx).
+
+export type RutaResumenBusqueda = RutaResumen & {
+  tipo_recorrido: string | null
+  mejor_epoca: string | null
+  coordenadas_parking: string | null
+  duracion_horas: number | null
+  duracion_minutos: number | null
+}
+
+export type Facetas = {
+  modalidad: OpcionFaceta[]
+  provincia: OpcionFaceta[]
+  dificultad: OpcionFaceta[]
+  tipoRecorrido: OpcionFaceta[]
+  mejorEpoca: OpcionFaceta[]
+  rangoDistancia: [number, number] | null
+  rangoDuracionMinutos: [number, number] | null
+  rangoDesnivel: [number, number] | null
+  totalPublicadas: number
+}
+
+type FilaFaceta = {
+  modalidad: string | null
+  provincia: string | null
+  dificultad: string | null
+  tipo_recorrido: string | null
+  mejor_epoca: string | null
+  distancia: number | null
+  duracion_horas: number | null
+  duracion_minutos: number | null
+  desnivel_positivo: number | null
+}
+
+const FACETAS_FIELDS =
+  'modalidad,provincia,dificultad,tipo_recorrido,mejor_epoca,distancia,duracion_horas,duracion_minutos,desnivel_positivo'
+
+// Los valores crudos reales (p.ej. "Lineal" con mayúscula) que hay que usar
+// para filtrar en la base de datos por cada opción de tipo de recorrido, se
+// calculan junto con la faceta pero no se exponen al cliente — se guardan
+// aparte en memoria del proceso porque unstable_cache solo puede devolver
+// datos serializables sencillos y esto solo se usa en el servidor.
+let ultimoTipoRecorridoValoresCrudos: Record<string, string[]> = {}
+
+async function calcularFacetasSinCache(): Promise<Facetas> {
+  const { data, error } = await supabase
+    .from('Ruta')
+    .select(FACETAS_FIELDS)
+    .eq('publicada', true)
+  if (error) throw new Error(error.message)
+  const filas = (data ?? []) as FilaFaceta[]
+
+  const modalidad = calcularFacetaGenerica(filas.map((f) => f.modalidad), MODALIDAD_LABELS)
+  const provincia = calcularFacetaGenerica(filas.map((f) => f.provincia), PROVINCIA_LABELS)
+  const dificultad = calcularFacetaGenerica(filas.map((f) => f.dificultad), DIFICULTAD_LABELS)
+  const tipoRecorrido = calcularFacetaGenerica(filas.map((f) => f.tipo_recorrido))
+  ultimoTipoRecorridoValoresCrudos = tipoRecorrido.valoresCrudosPorSlug
+
+  const mejorEpoca = calcularFacetaMeses(filas.map((f) => f.mejor_epoca))
+  const rangoDistancia = calcularRango(filas.map((f) => f.distancia))
+  const rangoDuracionMinutos = calcularRango(
+    filas.map((f) =>
+      f.duracion_horas !== null && f.duracion_minutos !== null
+        ? f.duracion_horas * 60 + f.duracion_minutos
+        : null
+    )
+  )
+  const rangoDesnivel = calcularRango(filas.map((f) => f.desnivel_positivo))
+
+  return {
+    modalidad: modalidad.opciones,
+    provincia: provincia.opciones,
+    dificultad: dificultad.opciones,
+    tipoRecorrido: tipoRecorrido.opciones,
+    mejorEpoca,
+    rangoDistancia,
+    rangoDuracionMinutos,
+    rangoDesnivel,
+    totalPublicadas: filas.length,
+  }
+}
+
+// Facetas cacheadas 5 minutos: evita recalcularlas en cada visita, pero se
+// mantienen razonablemente al día. A este volumen de datos (unas pocas
+// decenas de rutas publicadas) el coste de recalcularlas es mínimo.
+export const obtenerFacetas = unstable_cache(calcularFacetasSinCache, ['facetas-rutas'], {
+  revalidate: 300,
+})
+
+function totalMinutos(r: { duracion_horas: number | null; duracion_minutos: number | null }): number | null {
+  if (r.duracion_horas === null && r.duracion_minutos === null) return null
+  return (r.duracion_horas ?? 0) * 60 + (r.duracion_minutos ?? 0)
+}
+
+function aplicarOrdenEnMemoria(
+  rutas: RutaResumenBusqueda[],
+  orden: OrdenRutas,
+  lat: number | null,
+  lng: number | null
+): RutaResumenBusqueda[] {
+  const copia = [...rutas]
+  switch (orden) {
+    case 'distancia_asc':
+      return copia.sort((a, b) => (a.distancia ?? Infinity) - (b.distancia ?? Infinity))
+    case 'distancia_desc':
+      return copia.sort((a, b) => (b.distancia ?? -Infinity) - (a.distancia ?? -Infinity))
+    case 'duracion_asc':
+      return copia.sort((a, b) => (totalMinutos(a) ?? Infinity) - (totalMinutos(b) ?? Infinity))
+    case 'duracion_desc':
+      return copia.sort((a, b) => (totalMinutos(b) ?? -Infinity) - (totalMinutos(a) ?? -Infinity))
+    case 'dificultad_asc':
+      return copia.sort(
+        (a, b) => (DIFICULTAD_ORDEN[a.dificultad] ?? 99) - (DIFICULTAD_ORDEN[b.dificultad] ?? 99)
+      )
+    case 'dificultad_desc':
+      return copia.sort(
+        (a, b) => (DIFICULTAD_ORDEN[b.dificultad] ?? -1) - (DIFICULTAD_ORDEN[a.dificultad] ?? -1)
+      )
+    case 'valoracion_desc':
+      return copia.sort((a, b) => (b.valoracion ?? -1) - (a.valoracion ?? -1))
+    case 'cercania': {
+      if (lat === null || lng === null) return copia
+      return copia.sort((a, b) => {
+        const ca = parsearCoordenadas(a.coordenadas_parking)
+        const cb = parsearCoordenadas(b.coordenadas_parking)
+        const da = ca ? distanciaKm(lat, lng, ca[0], ca[1]) : Infinity
+        const db = cb ? distanciaKm(lat, lng, cb[0], cb[1]) : Infinity
+        return da - db
+      })
+    }
+    case 'relevancia':
+    default:
+      return copia.sort((a, b) => a.titulo.localeCompare(b.titulo, 'es'))
+  }
+}
+
+export type ResultadoBusqueda = {
+  rutas: RutaResumenBusqueda[]
+  total: number
+  facetas: Facetas
+}
+
+const RESUMEN_FIELDS_BUSQUEDA =
+  'id,slug,titulo,provincia,modalidad,dificultad,distancia,duracion,desnivel_positivo,valoracion,total_valoraciones,publicada,tipo_recorrido,mejor_epoca,coordenadas_parking,duracion_horas,duracion_minutos'
+
+// Por encima de este número de filas candidatas, se deja de intentar
+// filtrar/ordenar en memoria (ver nota de escala en lib/busqueda.ts) — hoy
+// no se llega ni de lejos a este límite.
+const LIMITE_CANDIDATAS_EN_MEMORIA = 2000
+
+export async function buscarRutas(filtros: FiltrosRutas): Promise<ResultadoBusqueda> {
+  const facetas = await obtenerFacetas()
+  // obtenerFacetas() ya ha rellenado ultimoTipoRecorridoValoresCrudos si
+  // hizo falta recalcular; si vino de caché, sigue siendo válido porque solo
+  // cambia cuando cambian los datos de origen.
+
+  let query = supabase
+    .from('Ruta')
+    .select(RESUMEN_FIELDS_BUSQUEDA, { count: 'exact' })
+    .eq('publicada', true)
+
+  if (filtros.modalidad.length) query = query.in('modalidad', filtros.modalidad)
+  if (filtros.provincia.length) query = query.in('provincia', filtros.provincia)
+  if (filtros.dificultad.length) query = query.in('dificultad', filtros.dificultad)
+  if (filtros.distanciaMin !== null) query = query.gte('distancia', filtros.distanciaMin)
+  if (filtros.distanciaMax !== null) query = query.lte('distancia', filtros.distanciaMax)
+  if (filtros.desnivelMin !== null) query = query.gte('desnivel_positivo', filtros.desnivelMin)
+  if (filtros.desnivelMax !== null) query = query.lte('desnivel_positivo', filtros.desnivelMax)
+
+  // Estos filtros no se pueden expresar como una comparación simple de una
+  // columna (texto libre, dos columnas partidas, orden que no es
+  // alfabético) — se resuelven trayendo un conjunto acotado de candidatas y
+  // filtrando/ordenando en el servidor de Next.js. Ver nota de escala.
+  const necesitaMemoria =
+    !!filtros.q ||
+    filtros.tipoRecorrido.length > 0 ||
+    filtros.mejorEpoca.length > 0 ||
+    filtros.duracionMin !== null ||
+    filtros.duracionMax !== null ||
+    filtros.orden === 'cercania' ||
+    filtros.orden === 'dificultad_asc' ||
+    filtros.orden === 'dificultad_desc'
+
+  if (!necesitaMemoria) {
+    switch (filtros.orden) {
+      case 'distancia_asc':
+        query = query.order('distancia', { ascending: true, nullsFirst: false })
+        break
+      case 'distancia_desc':
+        query = query.order('distancia', { ascending: false, nullsFirst: false })
+        break
+      case 'duracion_asc':
+        query = query
+          .order('duracion_horas', { ascending: true, nullsFirst: false })
+          .order('duracion_minutos', { ascending: true, nullsFirst: false })
+        break
+      case 'duracion_desc':
+        query = query
+          .order('duracion_horas', { ascending: false, nullsFirst: false })
+          .order('duracion_minutos', { ascending: false, nullsFirst: false })
+        break
+      case 'valoracion_desc':
+        query = query.order('valoracion', { ascending: false, nullsFirst: false })
+        break
+      case 'relevancia':
+      default:
+        query = query.order('titulo', { ascending: true })
+    }
+
+    const from = (filtros.page - 1) * PER_PAGE
+    const to = from + PER_PAGE - 1
+    const { data, error, count } = await query.range(from, to)
+    if (error) throw new Error(error.message)
+    return { rutas: (data ?? []) as RutaResumenBusqueda[], total: count ?? 0, facetas }
+  }
+
+  // Camino con filtrado/orden en memoria (búsqueda de texto, tipo de
+  // recorrido, duración o cercanía activos).
+  const { data, error } = await query.limit(LIMITE_CANDIDATAS_EN_MEMORIA)
+  if (error) throw new Error(error.message)
+  let candidatas = (data ?? []) as RutaResumenBusqueda[]
+
+  if (filtros.tipoRecorrido.length) {
+    const crudosValidos = new Set(
+      filtros.tipoRecorrido.flatMap((slug) => ultimoTipoRecorridoValoresCrudos[slug] ?? [])
+    )
+    candidatas = candidatas.filter(
+      (r) => r.tipo_recorrido !== null && crudosValidos.has(r.tipo_recorrido)
+    )
+  }
+
+  if (filtros.mejorEpoca.length) {
+    candidatas = candidatas.filter((r) => {
+      if (!r.mejor_epoca) return false
+      const normalizado = normalizarTexto(r.mejor_epoca)
+      return filtros.mejorEpoca.some((mes) => normalizado.includes(mes))
+    })
+  }
+
+  if (filtros.duracionMin !== null || filtros.duracionMax !== null) {
+    candidatas = candidatas.filter((r) => {
+      const minutos = totalMinutos(r)
+      if (minutos === null) return false
+      if (filtros.duracionMin !== null && minutos < filtros.duracionMin) return false
+      if (filtros.duracionMax !== null && minutos > filtros.duracionMax) return false
+      return true
+    })
+  }
+
+  if (filtros.q) {
+    const termino = filtros.q
+    candidatas = candidatas
+      .map((r) => {
+        const provinciaEtiqueta = PROVINCIA_LABELS[r.provincia] ?? r.provincia
+        const relevancia = Math.min(
+          puntuarRelevancia(compararTexto(termino, r.titulo)),
+          puntuarRelevancia(compararTexto(termino, provinciaEtiqueta))
+        )
+        return { r, relevancia }
+      })
+      .filter((x) => x.relevancia !== Infinity)
+      .sort((a, b) => a.relevancia - b.relevancia)
+      .map((x) => x.r)
+
+    // Si el orden pedido no es "relevancia", se reordena a partir de aquí
+    // manteniendo solo las que de verdad coinciden con la búsqueda.
+    if (filtros.orden !== 'relevancia') {
+      candidatas = aplicarOrdenEnMemoria(candidatas, filtros.orden, filtros.lat, filtros.lng)
+    }
+  } else {
+    candidatas = aplicarOrdenEnMemoria(candidatas, filtros.orden, filtros.lat, filtros.lng)
+  }
+
+  const total = candidatas.length
+  const from = (filtros.page - 1) * PER_PAGE
+  const pagina = candidatas.slice(from, from + PER_PAGE)
+
+  return { rutas: pagina, total, facetas }
 }
