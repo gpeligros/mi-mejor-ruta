@@ -336,19 +336,22 @@ NEXT_PUBLIC_APP_URL=https://tudominio.es
 
 ---
 
-## Funcionalidades en análisis (pendiente de decidir con el usuario)
+## Funcionalidades decididas — 21 agosto 2026
 
-Antes de cerrar el diseño definitivo de la base de datos (ver Prompt 3), el usuario ha pedido
-analizar estas ampliaciones. Todavía NO están decididas ni modeladas — se anota aquí para no
-perderlas de vista:
+- **Rutas especiales / itinerarios de varias etapas** (ej. Camino de Santiago): se modelan
+  ampliando el sistema de senderos ya diseñado (tabla `senderos`, antes "trails") para que
+  admita itinerarios de varias etapas con o sin código oficial GR/PR/SL, **Y ADEMÁS** se añade un
+  concepto nuevo de "colecciones temáticas" (tabla `colecciones`) que agrupa rutas ya existentes
+  bajo un mismo cartel editorial (ej. "Rutas de Castillos"), sin que tengan que ser un sendero
+  físico continuo. Las dos cosas conviven, son casos distintos.
+- **Búsqueda de rutas por puntos de interés** (cascadas, monasterios, castillos...): se empieza
+  simple, con etiquetas por ruta (tabla `caracteristicas`, antes "features"), pero el diseño deja
+  preparado el camino para convertir más adelante los sitios más importantes en fichas propias
+  (catálogo de sitios de interés) sin tener que rehacer la base de datos — la tabla `puntos_ruta`
+  (antes "route_points") ya guarda cada punto con su ubicación exacta, así que "ascender" un punto
+  a ficha propia el día de mañana es extender, no rehacer.
 
-- **Rutas especiales / itinerarios de varias etapas**: ej. Camino de Santiago. Por decidir si se
-  modelan como una ampliación del sistema de senderos GR/PR/SL ya diseñado, como "colecciones
-  temáticas" independientes que agrupan rutas ya existentes (ej. "Rutas de Castillos"), o ambas
-  cosas a la vez.
-- **Búsqueda de rutas por puntos de interés**: cascadas, monasterios, castillos, etc. Por decidir
-  si basta con etiquetas simples por ruta (filtro "tiene cascada: sí/no") o si hace falta un
-  catálogo propio de sitios (cada monasterio/castillo con su ficha, y qué rutas pasan cerca).
+Ver el análisis completo en `analisis-nuevas-funcionalidades-rutas.md`.
 
 ---
 
