@@ -41,3 +41,4 @@ yarn-error.log*
 
 # material historico / no forma parte de la app (decision 2026-08-18, consolidado 2026-08-21)
 /_archivo_historico/
+/_to_delete/
