@@ -378,6 +378,35 @@ Ver el análisis completo en `analisis-nuevas-funcionalidades-rutas.md`.
 
 ---
 
+## Migración WordPress -> base de datos nueva — estado (21 agosto 2026)
+
+El esquema definitivo en castellano (`basededatos/esquema-base-datos.sql`) y su semilla de
+catalogos (`basededatos/semilla-catalogos.sql`, con las 17 comunidades autonomas y las 50
+provincias reales) estan probados de verdad contra una base PostgreSQL local: DDL sin errores,
+consultas de ejemplo funcionando (filtros, cercania PostGIS, sendero tipo CAMINO sin codigo
+oficial, coleccion tematica, modalidad autocaravanas) y restricciones rechazando datos
+imposibles.
+
+Los tres scripts de migracion (`scripts/exportar-rutas.ts`, `scripts/validar-rutas.ts`,
+`scripts/importar-rutas.ts`) tambien estan probados contra los datos reales del XML: de 1.225
+rutas exportadas, 65 son publicadas y validas, se importan sin errores y sin duplicados
+(comprobado ejecutando el importador dos veces seguidas). El detalle completo esta en
+`docs/inventario-wordpress.md`, `docs/mapeo-wordpress-nueva-base-datos.md` y
+`docs/migracion-wordpress-nueva-arquitectura.md`.
+
+**Importante**: estas pruebas se hicieron contra una base de datos local desechable, NO contra
+el Supabase de produccion. WordPress sigue intacto (no se ha desactivado, no se ha borrado nada,
+ninguna URL ha cambiado) y sigue siendo la fuente de referencia hasta que se decida ejecutar la
+importacion de verdad contra Supabase, con `DATABASE_URL` apuntando alli. El paquete `pg`
+(cliente de PostgreSQL) se ha anadido a `package.json` porque lo necesita `importar-rutas.ts` —
+hace falta ejecutar `npm install` una vez para tenerlo disponible.
+
+Hallazgo importante de la auditoria: 62 de los 65 archivos GPX referenciados en WordPress NO
+existen fisicamente en el servidor (comprobado mirando la carpeta real de subidas) y no son
+recuperables de nada que haya hoy en WordPress — habra que conseguirlos de nuevo, ruta a ruta.
+
+---
+
 ## Tareas gestionadas desde Cowork (NO desde Claude Code)
 
 Las siguientes tareas se delegan a Claude Cowork para no interrumpir el flujo de desarrollo:
