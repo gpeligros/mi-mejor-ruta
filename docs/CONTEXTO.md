@@ -7,8 +7,15 @@ Este archivo es el contexto principal del proyecto. Léelo completo antes de cua
 ## ¿Qué es este proyecto?
 
 **Mi Mejor Ruta** es una aplicación web de rutas al aire libre y en vehículo por España.
-Migrada desde WordPress (1.225 rutas exportadas) a un stack moderno.
+Migrada desde WordPress (1.225 rutas exportadas en mayo de 2026) a un stack moderno.
 El objetivo es escalar por fases: web informativa → directorio filtrable → app con usuarios → monetización.
+
+> ⚠️ IMPORTANTE: **1.225 es el número de rutas que había en el momento de la exportación, NO un
+> tope ni una cifra fija del proyecto.** El catálogo va a seguir creciendo — puede llegar a ser
+> muchas más rutas con el tiempo. La base de datos, los índices, las consultas y cualquier
+> pantalla que muestre un número de rutas deben estar pensados para miles de rutas, nunca para
+> "1.225" como cifra fija. Ningún sitio del código debe escribir "1.225" a mano — el número
+> siempre se lee en vivo de la base de datos (ver regla 13 más abajo).
 
 ---
 
@@ -60,10 +67,14 @@ El objetivo es escalar por fases: web informativa → directorio filtrable → a
 
 ## Modelo de datos — Taxonomías
 
-### Taxonomía: `modalidad` (4 valores)
+### Taxonomía: `modalidad` (5 valores)
 ```
-senderismo | bici | moto | 4x4
+senderismo | bici | moto | 4x4 | autocaravanas
 ```
+> Añadida el 21 de agosto de 2026. El esquema `prisma/schema.prisma` y el `enum Modalidad` de la
+> sección "Prisma Schema (referencia)" de este documento todavía reflejan solo 4 valores — están
+> pendientes de actualizar cuando se reescriba la base de datos definitiva (ver
+> `analisis-nuevas-funcionalidades-rutas.md`).
 
 ### Taxonomía: `dificultad` (4 valores)
 ```
@@ -280,6 +291,7 @@ enum Dificultad {
 10. **Un componente = un archivo**: No mezclar componentes no relacionados en el mismo fichero.
 11. **Idioma**: TODO en castellano — no solo los textos y comentarios, también los nombres técnicos: tablas, columnas, funciones, ficheros. Nada de nombrar cosas en inglés salvo palabras reservadas del lenguaje (`SELECT`, `CREATE TABLE`, tipos de dato como `text`/`integer`) o términos sin traducción razonable establecida.
 12. **Nombres de fichero sin versiones**: nunca añadir sufijos de versión a un fichero (`_v2`, `_final`, `_bueno`, `_copia`, fechas, ni prefijos como "Prompt1_", "Prompt2_"...). Un fichero tiene un nombre descriptivo y estable; si se actualiza, se sobrescribe o se sustituye — nunca se acumula con un nombre nuevo al lado del viejo. Esto aplica tanto a ficheros ejecutables/código como a documentos y entregables.
+13. **El catálogo debe poder crecer sin límite práctico**: hoy hay 1.225 rutas exportadas de WordPress (de las cuales solo un puñado están realmente publicadas y completas, ver auditorías), pero el número real de rutas va a seguir subiendo. Ninguna pantalla, texto ni consulta puede dar por hecho un número fijo de rutas — el total siempre se lee en vivo (`count` a la base de datos), nunca se escribe a mano en el código ni en el contenido. Los índices y consultas se diseñan pensando en miles de rutas, no en el volumen actual.
 
 ---
 
@@ -358,7 +370,7 @@ Ver el análisis completo en `analisis-nuevas-funcionalidades-rutas.md`.
 ## Fuente de datos original
 
 - **Exportación WordPress**: `rutasespaa_WordPress_2026-05-22.xml`
-- **Total rutas**: 1.225
+- **Total rutas en esa exportación**: 1.225 (cifra histórica del momento de la exportación, no un tope — ver aviso al principio de este documento)
 - **CPT original**: `ruta`
 - **Taxonomías originales**: `modalidad`, `provincia`, `dificultad`
 - **Plugin de campos**: Pods (campos custom por modalidad)
